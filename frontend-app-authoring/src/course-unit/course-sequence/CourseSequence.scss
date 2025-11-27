@@ -1,0 +1,83 @@
+.sequence-container {
+  margin-bottom: 1.75rem;
+  width: 100%;
+}
+
+.sequence-load-failure-msg {
+  max-width: 30em;
+}
+
+.sequence-navigation {
+  .btn {
+    flex-grow: 1;
+    position: relative;
+    white-space: nowrap;
+    color: var(--pgn-color-gray-700);
+
+    &.btn-primary {
+      color: var(--pgn-color-white);
+    }
+
+    &:focus {
+      z-index: 1;
+    }
+  }
+
+  .sequence-navigation-tabs-wrapper {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .sequence-navigation-tabs-container {
+    flex: 1 1 100%;
+    // min-width 0 prevents the flex item from overflowing the parent container
+    // https://dev.to/martyhimmel/quick-tip-to-stop-flexbox-from-overflowing-peb
+    min-width: 0;
+  }
+
+  .sequence-navigation-tabs .btn:not(.sequence-navigation-tabs-action-btn) {
+    flex-basis: 100%;
+    min-width: 2rem;
+  }
+
+  .sequence-navigation-dropdown {
+    .dropdown-menu .btn {
+      flex-basis: 100%;
+      min-width: 4rem;
+
+      .unit-title {
+        flex-grow: 1;
+        text-align: left;
+        overflow: hidden;
+        min-width: 0;
+        margin: var(--pgn-spacing-spacer-0) var(--pgn-spacing-spacer-base);
+        text-overflow: ellipsis;
+      }
+
+      &.btn-primary {
+        background-color: var(--pgn-color-primary-500);
+        color: var(--pgn-color-white);
+      }
+    }
+  }
+
+  .sequence-navigation-prev-btn,
+  .sequence-navigation-next-btn,
+  .sequence-navigation-tabs-action-btn {
+    min-width: 12.5rem;
+  }
+
+  .sequence-navigation-prev-btn,
+  .sequence-navigation-next-btn {
+    @media (--pgn-size-breakpoint-max-width-xs) {
+      min-width: fit-content;
+      padding-top: var(--pgn-spacing-spacer-base);
+      padding-bottom: var(--pgn-spacing-spacer-base);
+    }
+
+    @media (--pgn-size-breakpoint-min-width-sm) {
+      padding-left: var(--pgn-spacing-spacer-4-5);
+      padding-right: var(--pgn-spacing-spacer-4-5);
+    }
+  }
+}

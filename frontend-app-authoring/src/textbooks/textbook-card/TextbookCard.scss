@@ -1,0 +1,42 @@
+.textbook-card {
+  padding: var(--pgn-spacing-spacer-base) var(--pgn-spacing-spacer-base) var(--pgn-spacing-spacer-base) var(--pgn-spacing-spacer-4);
+
+  & .pgn__card-header {
+    padding: 0;
+    margin-bottom: var(--pgn-spacing-spacer-base);
+  }
+
+  & .pgn__card-header-content {
+    margin-top: 0 !important;
+  }
+
+  & .pgn__card-header-actions {
+    margin: 0 !important;
+  }
+
+  &:not(:last-of-type) {
+    margin-bottom: var(--pgn-spacing-spacer-4);
+  }
+}
+
+.textbook-card__chapters {
+  margin-left: -(var(--pgn-spacing-spacer-2));
+}
+
+.textbook-card__chapter-item {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--pgn-spacing-spacer-base);
+
+  & span:first-of-type {
+    word-break: break-word;
+  }
+
+  & span:last-of-type {
+    word-break: break-all;
+  }
+
+  &:not(:last-of-type) {
+    margin-bottom: var(--pgn-spacing-spacer-2);
+  }
+}

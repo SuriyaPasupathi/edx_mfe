@@ -1,0 +1,16 @@
+.course-handouts {
+  .course-handouts-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--pgn-spacing-spacer-base);
+
+    .course-handouts-header__title {
+      font-weight: 300;
+      color: var(--pgn-color-gray-800);
+    }
+
+    .course-handouts-header__btn {
+      align-self: flex-start;
+    }
+  }
+}

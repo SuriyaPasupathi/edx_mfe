@@ -1,0 +1,49 @@
+.library-unit-page {
+  .pgn__card {
+    border-radius: 8px;
+    padding: 0;
+    margin-bottom: 1rem;
+    border: solid 1px var(--pgn-color-light-500);
+  }
+
+  .pgn__card.clickable {
+    box-shadow: none;
+    // this is required for clicks to be captured by card and iframe when it is not in focus
+    pointer-events: auto;
+
+    &:focus {
+      // this is required for clicks to be passed to underlying iframe component
+      pointer-events: none;
+    }
+
+    &.selected:not(:focus) {
+      outline: 2px var(--pgn-color-gray-700) solid;
+    }
+
+    &.selected:focus {
+      outline: 3px var(--pgn-color-gray-700) solid;
+    }
+
+    &:not(.selected):focus {
+      outline: 1px var(--pgn-color-gray-200) solid;
+      outline-offset: 2px;
+    }
+
+    &::before {
+      border: none !important; // Remove default focus
+    }
+  }
+
+  .pgn__action-row {
+    // this is required for clicks to be captured by card header
+    pointer-events: auto;
+  }
+
+  .pgn__card.clickable:hover {
+    box-shadow: 0 .125rem .25rem rgb(0 0 0 / .15), 0 .125rem .5rem rgb(0 0 0 / .15);
+  }
+
+  .sortable-item-children {
+    pointer-events: auto;
+  }
+}

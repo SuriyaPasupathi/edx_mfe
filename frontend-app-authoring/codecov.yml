@@ -1,0 +1,15 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0%
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+ignore:
+  - "src/grading-settings/grading-scale/react-ranger.js"
+  - "src/generic/DraggableList/verticalSortableList.ts"
+  - "src/container-comparison/data/api.mock.ts"
+  - "src/index.js"

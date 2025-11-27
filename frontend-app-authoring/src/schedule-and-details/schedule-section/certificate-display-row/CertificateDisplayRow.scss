@@ -1,0 +1,39 @@
+.dropdown-certificate {
+  .dropdown-certificate-label {
+    font: normal var(--pgn-typography-font-weight-bold) .75rem/1.25rem var(--pgn-typography-font-family-base);
+    color: var(--pgn-color-gray-500);
+    margin-bottom: .5rem;
+  }
+
+  .dropdown-certificate-control {
+    .dropdown-certificate-control-toggle {
+      font-size: var(--pgn-typography-form-input-font-size-base);
+      font-weight: var(--pgn-typography-form-input-font-weight);
+      line-height: var(--pgn-typography-form-input-line-height-base);
+      background: var(--pgn-color-form-input-bg-base);
+      border-color: var(--pgn-color-form-input-border);
+      border-width: var(--pgn-size-form-input-width-border);
+      box-shadow: var(--pgn-elevation-form-input-base);
+      border-radius: var(--pgn-size-form-input-radius-border-base);
+      color: var(--pgn-color-form-input-base);
+      padding: var(--pgn-spacing-form-input-padding-y-base) var(--pgn-spacing-form-input-padding-x-base);
+      height: var(--pgn-size-form-input-height-base);
+      justify-content: space-between;
+      width: 100%;
+
+      &:not(:disabled, .disabled):active,
+      &:not(:disabled, .disabled).active,
+      .show & {
+        color: var(--pgn-color-form-input-base);
+        border-color: var(--pgn-color-form-input-bg-base);
+        background-color: var(--pgn-color-form-input-bg-base);
+      }
+    }
+  }
+
+  .pgn__form-control-description {
+    font: normal var(--pgn-typography-font-weight-normal) .75rem/1.25rem var(--pgn-typography-font-family-base);
+    color: var(--pgn-color-gray-500);
+    margin-top: .5rem;
+  }
+}
