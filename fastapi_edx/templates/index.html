@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open edX Auto-Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .success {
+            background: #efe;
+            border: 1px solid #cfc;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .iframe-container {
+            display: none;
+            margin-top: 30px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .iframe-container iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+
+        .back-btn {
+            display: none;
+            width: 100%;
+            padding: 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background 0.3s ease;
+        }
+
+        .back-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 ICG Open edX Access</h1>
+            <p>Enter your details to access the learning platform</p>
+        </div>
+
+        <form id="userForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="your.email@example.com">
+            </div>
+
+            <div class="form-group">
+                <label for="name">Full Name (Optional)</label>
+                <input type="text" id="name" name="name" placeholder="Your Full Name">
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                🚀 Generate Access Link
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Creating your access link...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+        <div class="success" id="success"></div>
+
+        <div class="iframe-container" id="iframeContainer">
+            <iframe id="dashboardFrame" src="" title="Open edX Dashboard"></iframe>
+            <button class="back-btn" id="backBtn" onclick="resetForm()">← Back to Form</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('userForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const name = document.getElementById('name').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const success = document.getElementById('success');
+            const iframeContainer = document.getElementById('iframeContainer');
+            const dashboardFrame = document.getElementById('dashboardFrame');
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            success.style.display = 'none';
+            iframeContainer.style.display = 'none';
+            
+            try {
+                const response = await fetch('/generate-link', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        name: name || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show success message
+                    success.textContent = `✅ Access link generated successfully! Redirecting to dashboard...`;
+                    success.style.display = 'block';
+                    
+                    // Wait a moment then show iframe
+                    setTimeout(() => {
+                        // Extract the link ID from the response
+                        const linkId = data.link.split('/access/')[1];
+                        const iframeUrl = `/dashboard-proxy/${linkId}`;
+                        
+                        // Set iframe source
+                        dashboardFrame.src = iframeUrl;
+                        iframeContainer.style.display = 'block';
+                        
+                        // Hide form and show iframe
+                        document.getElementById('userForm').style.display = 'none';
+                        loading.style.display = 'none';
+                    }, 2000);
+                    
+                } else {
+                    // Show error message
+                    error.textContent = `❌ Error: ${data.detail || 'Failed to generate access link'}`;
+                    error.style.display = 'block';
+                    loading.style.display = 'none';
+                }
+                
+            } catch (err) {
+                error.textContent = `❌ Network Error: ${err.message}`;
+                error.style.display = 'block';
+                loading.style.display = 'none';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        function resetForm() {
+            // Reset form
+            document.getElementById('userForm').reset();
+            document.getElementById('userForm').style.display = 'block';
+            document.getElementById('iframeContainer').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // Auto-focus on email field
+        document.getElementById('email').focus();
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic[email]
+requests
+sqlalchemy
+python-dotenv
+jinja2
