@@ -9,15 +9,15 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:///./fastapi_edx.db
-      - FASTAPI_PUBLIC_BASE_URL=http://52.52.41.225:8000
-      - OPENEDX_API_BASE=http://52.52.41.225:18000
-      - OPENEDX_DASHBOARD_URL=http://52.52.41.225:18000/dashboard
+      - FASTAPI_PUBLIC_BASE_URL=http://localhost:8000
+      - OPENEDX_API_BASE=http://lms:18000
+      - OPENEDX_DASHBOARD_URL=http://lms:18000/dashboard
       - DEFAULT_USER_PASSWORD=ChangeMe!2345
       - COURSE_ID=course-v1:Example+Demo+2025
     volumes:
       - ./fastapi_edx:/app
       - fastapi_data:/app/data
-    # Note: LMS service is defined in edx-platform/docker-compose.yml
+    # Note: LMS service is defined in edx-platform/docker-comyml
     # Make sure edx-platform services are running first
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/config-check || exit 1"]
