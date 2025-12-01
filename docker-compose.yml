@@ -9,9 +9,9 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:///./fastapi_edx.db
-      - FASTAPI_PUBLIC_BASE_URL=http://localhost:8000
-      - OPENEDX_API_BASE=http://localhost:18000
-      - OPENEDX_DASHBOARD_URL=http://localhost:18000/dashboardstudioworker@gmail.comstudioworker@gmail.com
+      - FASTAPI_PUBLIC_BASE_URL=http://52.52.41.225:8000
+      - OPENEDX_API_BASE=http://52.52.41.225:18000
+      - OPENEDX_DASHBOARD_URL=http://52.52.41.225:18000/dashboard
       - DEFAULT_USER_PASSWORD=ChangeMe!2345
       - COURSE_ID=course-v1:Example+Demo+2025
     volumes:
