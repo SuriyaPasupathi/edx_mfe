@@ -1,0 +1,95 @@
+services:
+  # FastAPI Service
+  fastapi:
+    build:
+      context: ./fastapi_edx
+      dockerfile: Dockerfile
+    container_name: edx_fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./fastapi_edx.db
+      - FASTAPI_PUBLIC_BASE_URL=http://localhost:8000
+      - OPENEDX_API_BASE=http://localhost:18000
+      - OPENEDX_DASHBOARD_URL=http://localhost:18000/dashboardstudioworker@gmail.comstudioworker@gmail.com
+      - DEFAULT_USER_PASSWORD=ChangeMe!2345
+      - COURSE_ID=course-v1:Example+Demo+2025
+    volumes:
+      - ./fastapi_edx:/app
+      - fastapi_data:/app/data
+    # Note: LMS service is defined in edx-platform/docker-compose.yml
+    # Make sure edx-platform services are running first
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/config-check || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - edx_network
+
+  # Learning MFE
+  learning_mfe:
+    build:
+      context: ./frontend-app-learning
+      dockerfile: Dockerfile
+    container_name: edx_learning_mfe
+    ports:
+      - "2000:2000"
+    environment:
+      - PUBLIC_PATH=/learning/
+      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+    volumes:
+      - ./frontend-app-learning:/app
+      - /app/node_modules
+    # Note: LMS service is defined in edx-platform/docker-compose.yml
+    # Make sure edx-platform services are running first
+    networks:
+      - edx_network
+
+  # Authoring MFE
+  authoring_mfe:
+    build:
+      context: ./frontend-app-authoring
+      dockerfile: Dockerfile
+    container_name: edx_authoring_mfe
+    ports:
+      - "2001:2001"
+    environment:
+      - PUBLIC_PATH=/authoring/
+      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+    volumes:
+      - ./frontend-app-authoring:/app
+      - /app/node_modules
+    # Note: CMS service is defined in edx-platform/docker-compose.yml
+    # Make sure edx-platform services are running first
+    networks:
+      - edx_network
+
+  # Learner Dashboard MFE
+  learner_dashboard_mfe:
+    build:
+      context: ./frontend-app-learner-dashboard
+      dockerfile: Dockerfile
+    container_name: edx_learner_dashboard_mfe
+    ports:
+      - "1996:1996"
+    environment:
+      - PUBLIC_PATH=/learner-dashboard/
+      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+    volumes:
+      - ./frontend-app-learner-dashboard:/app
+      - /app/node_modules
+    # Note: LMS service is defined in edx-platform/docker-compose.yml
+    # Make sure edx-platform services are running first
+    networks:
+      - edx_network
+
+volumes:
+  fastapi_data:
+
+networks:
+  edx_network:
+    name: edx_network
+    external: true
+

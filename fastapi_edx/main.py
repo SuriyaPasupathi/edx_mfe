@@ -9,6 +9,7 @@ import requests
 import os
 import logging
 import re
+from urllib.parse import urljoin
 from dotenv import load_dotenv
 from pydantic import EmailStr, validator
 
@@ -55,9 +56,12 @@ templates = Jinja2Templates(directory="templates")
 
 # Open edX Config
 FASTAPI_PUBLIC_BASE_URL = os.getenv("FASTAPI_PUBLIC_BASE_URL", "http://localhost:8000")
-OPENEDX_API_BASE = os.getenv("OPENEDX_API_BASE", "http://localhost:18000")
+OPENEDX_API_BASE = os.getenv("OPENEDX_API_BASE", "http://localhost:18000").rstrip('/')
 COURSE_ID = os.getenv("COURSE_ID", "course-v1:Example+Demo+2025")
-OPENEDX_DASHBOARD_URL = os.getenv("OPENEDX_DASHBOARD_URL", f"{OPENEDX_API_BASE}/dashboard")
+# Normalize dashboard URL - remove trailing slash from base and add /dashboard
+OPENEDX_DASHBOARD_URL = os.getenv("OPENEDX_DASHBOARD_URL", "").rstrip('/')
+if not OPENEDX_DASHBOARD_URL:
+    OPENEDX_DASHBOARD_URL = f"{OPENEDX_API_BASE}/dashboard"
 DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD", "ChangeMe!2345")
 
 # Dependency to get DB session
@@ -289,8 +293,10 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
     email = user_link.email
     user_token = db.query(UserToken).filter(UserToken.email == email).first()
     
+    # If no valid session found, redirect to access endpoint to create one
     if not user_token or not user_token.access_token:
-        raise HTTPException(status_code=400, detail="No valid session found for user")
+        logger.info(f"No valid session found for user {email}, redirecting to access endpoint")
+        return RedirectResponse(url=f"{FASTAPI_PUBLIC_BASE_URL}/access/{link_id}?format=redirect", status_code=307)
 
     # Create a session with the stored cookies
     session = requests.Session()
@@ -298,16 +304,21 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
     session.cookies.set("sessionid", user_token.access_token)
     
     try:
-        # Validate dashboard URL
+        # Validate and normalize dashboard URL
         if not OPENEDX_DASHBOARD_URL or OPENEDX_DASHBOARD_URL == "http://localhost:18000/dashboard":
             logger.warning(f"Dashboard URL not properly configured: {OPENEDX_DASHBOARD_URL}")
-            # Try to construct a valid URL
+            # Try to construct a valid URL (ensure no double slashes)
             if OPENEDX_API_BASE and OPENEDX_API_BASE != "https://your-openedx-domain.com":
-                dashboard_url = f"{OPENEDX_API_BASE}/dashboard"
+                base = OPENEDX_API_BASE.rstrip('/')
+                dashboard_url = f"{base}/dashboard"
             else:
                 raise HTTPException(status_code=500, detail="Open edX configuration not set. Please set OPENEDX_API_BASE environment variable.")
         else:
-            dashboard_url = OPENEDX_DASHBOARD_URL
+            dashboard_url = OPENEDX_DASHBOARD_URL.rstrip('/')
+            # Ensure it ends with /dashboard if it's just the base URL
+            if not dashboard_url.endswith('/dashboard'):
+                if dashboard_url == OPENEDX_API_BASE.rstrip('/'):
+                    dashboard_url = f"{dashboard_url}/dashboard"
             
         logger.info(f"Fetching dashboard from: {dashboard_url}")
         
