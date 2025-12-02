@@ -431,8 +431,23 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
             """
             
             response = HTMLResponse(content=dashboard_html)
-            response.headers["X-Frame-Options"] = "SAMEORIGIN"
-            response.headers["Content-Security-Policy"] = "frame-ancestors 'self' *"
+            # Allow iframe embedding from any origin (including localhost)
+            response.headers["X-Frame-Options"] = "ALLOWALL"
+            response.headers["Content-Security-Policy"] = "frame-ancestors *"
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            
+            # Set link_id cookie for navigation tracking
+            response.set_cookie(
+                key="edx_link_id",
+                value=link_id,
+                path="/",
+                httponly=False,  # Allow JavaScript to read it if needed
+                samesite="lax",
+                max_age=86400  # 24 hours
+            )
+            
             return response
         else:
             # If dashboard fetch fails, return a helpful error page
@@ -649,16 +664,47 @@ def openedx_proxy(path: str, request: Request, db: Session = Depends(get_db)):
     if path.startswith('static/'):
         return RedirectResponse(url=f"{FASTAPI_PUBLIC_BASE_URL}/openedx-static/{path}", status_code=307)
     
-    # Extract link_id from referer or session
+    # Extract link_id from multiple sources
     referer = request.headers.get("referer", "")
     link_id = None
     
-    # Try to extract link_id from referer URL
-    if "/dashboard-proxy/" in referer:
-        link_id = referer.split("/dashboard-proxy/")[1].split("?")[0].split("#")[0]
+    # Strategy 1: Try to extract link_id from referer URL (multiple patterns)
+    if referer:
+        # Check for /dashboard-proxy/{link_id}
+        if "/dashboard-proxy/" in referer:
+            link_id = referer.split("/dashboard-proxy/")[1].split("?")[0].split("#")[0].split("/")[0]
+        # Check for /access/{link_id}
+        elif "/access/" in referer:
+            link_id = referer.split("/access/")[1].split("?")[0].split("#")[0].split("/")[0]
+        # Check for /openedx-proxy/ (might have link_id in query or previous path)
+        elif "/openedx-proxy/" in referer:
+            # Try to extract from query parameter
+            if "link_id=" in referer:
+                link_id = referer.split("link_id=")[1].split("&")[0].split("#")[0]
+    
+    # Strategy 2: Try to get link_id from cookies
+    if not link_id:
+        link_id = request.cookies.get("edx_link_id")
+    
+    # Strategy 3: Try to get link_id from query parameters
+    if not link_id:
+        link_id = request.query_params.get("link_id")
+    
+    # Strategy 4: Try to find link_id from session cookie (if we have user email)
+    if not link_id:
+        session_cookie = request.cookies.get("lms_sessionid") or request.cookies.get("sessionid")
+        if session_cookie:
+            # Try to find user token by session cookie
+            user_token = db.query(UserToken).filter(UserToken.access_token == session_cookie).first()
+            if user_token:
+                # Find link for this user
+                user_link = db.query(UserLink).filter(UserLink.email == user_token.email).first()
+                if user_link:
+                    link_id = user_link.link_id
     
     if not link_id:
-        raise HTTPException(status_code=400, detail="Invalid navigation request")
+        logger.warning(f"Could not extract link_id from referer: {referer}, cookies: {dict(request.cookies)}")
+        raise HTTPException(status_code=400, detail="Invalid navigation request - link_id not found")
     
     # Get user session
     user_link = db.query(UserLink).filter(UserLink.link_id == link_id).first()
@@ -690,6 +736,7 @@ def openedx_proxy(path: str, request: Request, db: Session = Depends(get_db)):
             content = response.text
             
             # Replace relative URLs with our proxy URLs
+            # Note: link_id will be available via cookie, so we don't need to add it to every URL
             content = content.replace('href="/', f'href="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
             content = content.replace('src="/', f'src="{FASTAPI_PUBLIC_BASE_URL}/openedx-static/')
             content = content.replace('action="/', f'action="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
@@ -698,7 +745,18 @@ def openedx_proxy(path: str, request: Request, db: Session = Depends(get_db)):
             if '<head>' in content:
                 content = content.replace('<head>', f'<head><base href="{OPENEDX_API_BASE}/">')
             
-            return HTMLResponse(content=content)
+            # Create response with link_id cookie (this is the key for navigation)
+            html_response = HTMLResponse(content=content)
+            html_response.set_cookie(
+                key="edx_link_id",
+                value=link_id,
+                path="/",
+                httponly=False,
+                samesite="lax",
+                max_age=86400
+            )
+            
+            return html_response
         else:
             raise HTTPException(status_code=response.status_code, detail="Open edX request failed")
             
@@ -955,13 +1013,16 @@ def access_link(link_id: str, format: str = "redirect", iframe: str = None, embe
         raise HTTPException(status_code=500, detail=error_detail)
 
     # Step 4: Return response based on format
-    if format == "json":
-        # Return JSON response with user info and redirect URL
+    # Check if this is an iframe request FIRST (before checking format)
+    is_iframe_request = iframe == "1" or embedded == "1" or (request and "iframe" in str(request.headers.get("referer", "")))
+    
+    if format == "json" and not is_iframe_request:
+        # Return JSON response with user info and redirect URL (only if not iframe)
         user_json = {
             "email": email,
             "name": email.split("@")[0],
             "course_id": COURSE_ID,
-            "session_cookie": user_token.access_token,
+            "session_cookie": user_token.access_token if user_token else None,
             "authentication_method": "session_based",
             "dashboard_url": OPENEDX_DASHBOARD_URL,
             "redirect_url": f"{FASTAPI_PUBLIC_BASE_URL}/access/{link_id}?format=redirect",
@@ -969,110 +1030,161 @@ def access_link(link_id: str, format: str = "redirect", iframe: str = None, embe
             "message": "User registered and logged in successfully"
         }
         return JSONResponse(content=user_json)
-    else:
-        # Check if this is an iframe request
-        is_iframe_request = iframe == "1" or embedded == "1" or (request and "iframe" in str(request.headers.get("referer", "")))
+    
+    # For iframe requests, ALWAYS return HTML (even if no token yet)
+    if is_iframe_request:
+        logger.info(f"Returning iframe-friendly HTML for user: {email}")
         
-        if user_token.access_token and user_token.access_token != "session_based":
-            if is_iframe_request:
-                # For iframe requests, return HTML content instead of redirecting
-                logger.info(f"Returning iframe-friendly HTML for user: {email}")
-                
-                # Create a simple HTML page that loads the dashboard in the same iframe
-                dashboard_html = f"""
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Open edX Dashboard</title>
-                    <style>
-                        body {{
-                            margin: 0;
-                            padding: 0;
-                            # font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                            background: #f5f5f5;
-                        }}
-                        .iframe-container {{
-                            width: 1000px;
-                            height: 100vh;
-                            border: none;
-                        }}
-                        .loading {{
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            height: 100vh;
-                            background: white;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <div class="loading" id="loading">
-                        <div>Loading Open edX Dashboard...</div>
-                    </div>
-                    <iframe 
-                        id="dashboard-iframe"
-                        src="{OPENEDX_DASHBOARD_URL}" 
-                        class="iframe-container"
-                        frameborder="0"
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                        onload="document.getElementById('loading').style.display='none'">
-                    </iframe>
-                </body>
-                </html>
-                """
-                
-                # Create response with cookies
-                response = HTMLResponse(content=dashboard_html)
-                response.set_cookie(
-                    key="lms_sessionid",
-                    value=user_token.access_token,
-                    path="/",
-                    httponly=True,
-                    samesite="lax"
-                )
-                response.set_cookie(
-                    key="sessionid", 
-                    value=user_token.access_token,
-                    path="/",
-                    httponly=True,
-                    samesite="lax"
-                )
-                
-                return response
-            else:
-                # For non-iframe requests, redirect to dashboard proxy
-                logger.info(f"Redirecting to dashboard proxy for user: {email}")
-                
-                # Create a response that sets the session cookie and redirects
-                response = RedirectResponse(url=f"{FASTAPI_PUBLIC_BASE_URL}/dashboard-proxy/{link_id}", status_code=307)
-                
-                # Set the session cookie for the browser
-                response.set_cookie(
-                    key="lms_sessionid",
-                    value=user_token.access_token,
-                    path="/",
-                    httponly=True,
-                    samesite="lax"
-                )
-                response.set_cookie(
-                    key="sessionid", 
-                    value=user_token.access_token,
-                    path="/",
-                    httponly=True,
-                    samesite="lax"
-                )
-                
-                return response
+        # Use dashboard-proxy endpoint which handles session properly
+        dashboard_url = f"{FASTAPI_PUBLIC_BASE_URL}/dashboard-proxy/{link_id}"
+        
+        # If we have a valid session token, use it; otherwise dashboard-proxy will handle login
+        if user_token and user_token.access_token and user_token.access_token != "session_based":
+            dashboard_url = f"{FASTAPI_PUBLIC_BASE_URL}/dashboard-proxy/{link_id}"
         else:
-            logger.warning(f"No valid session cookie found: {user_token.access_token}")
+            # No token yet, but still return HTML that will trigger login
+            dashboard_url = f"{FASTAPI_PUBLIC_BASE_URL}/dashboard-proxy/{link_id}"
+        
+        # Create iframe-friendly HTML that loads dashboard-proxy
+        dashboard_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Open edX Dashboard</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                html, body {{
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
+                }}
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    background: #f5f5f5;
+                }}
+                .iframe-container {{
+                    width: 100%;
+                    height: 100vh;
+                    border: none;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .loading {{
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    background: white;
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    color: #666;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="loading" id="loading">
+                <div>Loading Open edX Dashboard...</div>
+            </div>
+            <iframe 
+                id="dashboard-iframe"
+                src="{dashboard_url}" 
+                class="iframe-container"
+                frameborder="0"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"
+                onload="document.getElementById('loading').style.display='none';"
+                allow="fullscreen">
+            </iframe>
+        </body>
+        </html>
+        """
+        
+        # Create response with proper headers for iframe embedding
+        response = HTMLResponse(content=dashboard_html)
+        
+        # Set CORS headers to allow embedding from any origin (including localhost)
+        response.headers["X-Frame-Options"] = "ALLOWALL"
+        response.headers["Content-Security-Policy"] = "frame-ancestors *"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        # Set cookies if we have a token
+        if user_token and user_token.access_token and user_token.access_token != "session_based":
+            response.set_cookie(
+                key="lms_sessionid",
+                value=user_token.access_token,
+                path="/",
+                httponly=True,
+                samesite="lax"
+            )
+            response.set_cookie(
+                key="sessionid", 
+                value=user_token.access_token,
+                path="/",
+                httponly=True,
+                samesite="lax"
+            )
+        
+        # Always set link_id cookie for navigation tracking
+        response.set_cookie(
+            key="edx_link_id",
+            value=link_id,
+            path="/",
+            httponly=False,  # Allow JavaScript to read it if needed
+            samesite="lax",
+            max_age=86400  # 24 hours
+        )
+        
+        return response
+    else:
+        # For non-iframe requests, redirect to dashboard proxy
+        if user_token and user_token.access_token and user_token.access_token != "session_based":
+            logger.info(f"Redirecting to dashboard proxy for user: {email}")
+            
+            # Create a response that sets the session cookie and redirects
+            response = RedirectResponse(url=f"{FASTAPI_PUBLIC_BASE_URL}/dashboard-proxy/{link_id}", status_code=307)
+            
+            # Set the session cookie for the browser
+            response.set_cookie(
+                key="lms_sessionid",
+                value=user_token.access_token,
+                path="/",
+                httponly=True,
+                samesite="lax"
+            )
+            response.set_cookie(
+                key="sessionid", 
+                value=user_token.access_token,
+                path="/",
+                httponly=True,
+                samesite="lax"
+            )
+            
+            # Set link_id cookie for navigation tracking
+            response.set_cookie(
+                key="edx_link_id",
+                value=link_id,
+                path="/",
+                httponly=False,
+                samesite="lax",
+                max_age=86400
+            )
+            
+            return response
+        else:
+            logger.warning(f"No valid session cookie found: {user_token.access_token if user_token else 'No token'}")
             # Fallback: return JSON with instructions
             user_json = {
                 "email": email,
                 "name": email.split("@")[0],
                 "course_id": COURSE_ID,
-                "session_cookie": user_token.access_token,
+                "session_cookie": user_token.access_token if user_token else None,
                 "authentication_method": "session_based",
                 "dashboard_url": OPENEDX_DASHBOARD_URL,
                 "redirect_url": f"{FASTAPI_PUBLIC_BASE_URL}/access/{link_id}?format=redirect",
