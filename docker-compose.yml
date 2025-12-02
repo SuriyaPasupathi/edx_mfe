@@ -56,8 +56,18 @@ services:
     ports:
       - "2001:2001"
     environment:
-      - PUBLIC_PATH=/authoring/
+      - STUDIO_BASE_URL=http://52.52.41.225:18010
+      - LMS_BASE_URL=http://52.52.41.225:18000
+      - BASE_URL=http://52.52.41.225:2001
       - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+      - PUBLIC_PATH=/authoring/
+      - PORT=2001
+      - ENABLE_UNIT_PAGE=true
+      - ENABLE_ASSETS_PAGE=true
+      - ENABLE_CERTIFICATE_PAGE=true
+      - ENABLE_ACCESSIBILITY_PAGE=true
+      - ENABLE_TAGGING_TAXONOMY_PAGES=true
+      - ENABLE_PROGRESS_GRAPH_SETTINGS=true
     volumes:
       - ./frontend-app-authoring:/app
       - /app/node_modules
