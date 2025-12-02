@@ -336,10 +336,27 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
             dashboard_content = dashboard_content.replace('url("/static/', f'url("{FASTAPI_PUBLIC_BASE_URL}/openedx-static/static/')
             dashboard_content = dashboard_content.replace('url(/static/', f'url({FASTAPI_PUBLIC_BASE_URL}/openedx-static/static/')
             
-            # Handle other relative URLs with navigation proxy
-            dashboard_content = dashboard_content.replace('src="/', f'src="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
-            dashboard_content = dashboard_content.replace('href="/', f'href="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
-            dashboard_content = dashboard_content.replace('action="/', f'action="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
+            # Handle other relative URLs with navigation proxy (include link_id in query)
+            def add_link_id_to_href_dash(match):
+                url_path = match.group(1)
+                if '?' in url_path or url_path.startswith('http'):
+                    return match.group(0)
+                separator = '&' if '?' in url_path else '?'
+                return f'href="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy{url_path}{separator}link_id={link_id}"'
+            
+            def add_link_id_to_action_dash(match):
+                url_path = match.group(1)
+                if '?' in url_path or url_path.startswith('http'):
+                    return match.group(0)
+                separator = '&' if '?' in url_path else '?'
+                return f'action="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy{url_path}{separator}link_id={link_id}"'
+            
+            # Replace href="/path" with href="/openedx-proxy/path?link_id=..."
+            dashboard_content = re.sub(r'href="(/[^"]*)"', add_link_id_to_href_dash, dashboard_content)
+            # Replace action="/path" with action="/openedx-proxy/path?link_id=..."
+            dashboard_content = re.sub(r'action="(/[^"]*)"', add_link_id_to_action_dash, dashboard_content)
+            # For src, use static proxy
+            dashboard_content = dashboard_content.replace('src="/', f'src="{FASTAPI_PUBLIC_BASE_URL}/openedx-static/')
             
             # Add base tag to ensure relative URLs work correctly
             if '<head>' in dashboard_content:
@@ -366,27 +383,14 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
                         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                         background: #f5f5f5;
                     }}
-                    .header {{
-                        background: white;
-                        padding: 20px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                        margin-bottom: 20px;
-                        position: sticky;
-                        top: 0;
-                        z-index: 1000;
-                    }}
-                    .header h1 {{
-                        margin: 0;
-                        color: #333;
-                        font-size: 1.5em;
-                    }}
                     .dashboard-content {{
                         background: white;
-                        margin: 0 20px 20px 20px;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        margin: 0;
+                        padding: 0;
+                        border-radius: 0;
+                        box-shadow: none;
                         overflow: hidden;
-                        min-height: 80vh;
+                        min-height: 100vh;
                     }}
                     .loading {{
                         text-align: center;
@@ -396,9 +400,6 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
                 </style>
             </head>
             <body>
-                <div class="header">
-                    <h1>🎓 Open edX Dashboard - {email}</h1>
-                </div>
                 <div class="dashboard-content">
                     {dashboard_content}
                 </div>
@@ -439,12 +440,15 @@ def dashboard_proxy(link_id: str, request: Request, db: Session = Depends(get_db
             response.headers["Access-Control-Allow-Headers"] = "*"
             
             # Set link_id cookie for navigation tracking
+            # Use SameSite=None and Secure=False for cross-origin iframe embedding (HTTP)
+            # Note: For HTTPS, use Secure=True
             response.set_cookie(
                 key="edx_link_id",
                 value=link_id,
                 path="/",
                 httponly=False,  # Allow JavaScript to read it if needed
-                samesite="lax",
+                samesite="none",  # Changed to "none" for cross-origin
+                secure=False,  # Set to False for HTTP, True for HTTPS
                 max_age=86400  # 24 hours
             )
             
@@ -736,23 +740,44 @@ def openedx_proxy(path: str, request: Request, db: Session = Depends(get_db)):
             content = response.text
             
             # Replace relative URLs with our proxy URLs
-            # Note: link_id will be available via cookie, so we don't need to add it to every URL
-            content = content.replace('href="/', f'href="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
+            # Include link_id in query parameter as fallback (since cookies may not work cross-origin)
+            def add_link_id_to_href(match):
+                url_path = match.group(1)
+                # Skip if already has query params or is external URL
+                if '?' in url_path or url_path.startswith('http'):
+                    return match.group(0)
+                # Add link_id as query parameter
+                separator = '&' if '?' in url_path else '?'
+                return f'href="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy{url_path}{separator}link_id={link_id}"'
+            
+            def add_link_id_to_action(match):
+                url_path = match.group(1)
+                if '?' in url_path or url_path.startswith('http'):
+                    return match.group(0)
+                separator = '&' if '?' in url_path else '?'
+                return f'action="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy{url_path}{separator}link_id={link_id}"'
+            
+            # Replace href="/path" with href="/openedx-proxy/path?link_id=..."
+            content = re.sub(r'href="(/[^"]*)"', add_link_id_to_href, content)
+            # Replace action="/path" with action="/openedx-proxy/path?link_id=..."
+            content = re.sub(r'action="(/[^"]*)"', add_link_id_to_action, content)
+            # For src, use static proxy (no link_id needed)
             content = content.replace('src="/', f'src="{FASTAPI_PUBLIC_BASE_URL}/openedx-static/')
-            content = content.replace('action="/', f'action="{FASTAPI_PUBLIC_BASE_URL}/openedx-proxy/')
             
             # Add base tag
             if '<head>' in content:
                 content = content.replace('<head>', f'<head><base href="{OPENEDX_API_BASE}/">')
             
             # Create response with link_id cookie (this is the key for navigation)
+            # Use SameSite=None for cross-origin iframe embedding
             html_response = HTMLResponse(content=content)
             html_response.set_cookie(
                 key="edx_link_id",
                 value=link_id,
                 path="/",
                 httponly=False,
-                samesite="lax",
+                samesite="none",  # Changed to "none" for cross-origin
+                secure=False,  # Set to False for HTTP, True for HTTPS
                 max_age=86400
             )
             
@@ -1131,13 +1156,15 @@ def access_link(link_id: str, format: str = "redirect", iframe: str = None, embe
                 samesite="lax"
             )
         
-        # Always set link_id cookie for navigation tracking
+            # Always set link_id cookie for navigation tracking
+        # Use SameSite=None for cross-origin iframe embedding
         response.set_cookie(
             key="edx_link_id",
             value=link_id,
             path="/",
             httponly=False,  # Allow JavaScript to read it if needed
-            samesite="lax",
+            samesite="none",  # Changed to "none" for cross-origin
+            secure=False,  # Set to False for HTTP, True for HTTPS
             max_age=86400  # 24 hours
         )
         
@@ -1167,12 +1194,14 @@ def access_link(link_id: str, format: str = "redirect", iframe: str = None, embe
             )
             
             # Set link_id cookie for navigation tracking
+            # Use SameSite=None for cross-origin iframe embedding
             response.set_cookie(
                 key="edx_link_id",
                 value=link_id,
                 path="/",
                 httponly=False,
-                samesite="lax",
+                samesite="none",  # Changed to "none" for cross-origin
+                secure=False,  # Set to False for HTTP, True for HTTPS
                 max_age=86400
             )
             
