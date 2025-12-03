@@ -38,7 +38,7 @@ services:
       - "2000:2000"
     environment:
       - PUBLIC_PATH=/learning/
-      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+      - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
     volumes:
       - ./frontend-app-learning:/app
       - /app/node_modules
@@ -59,7 +59,7 @@ services:
       - STUDIO_BASE_URL=http://52.52.41.225:18010
       - LMS_BASE_URL=http://52.52.41.225:18000
       - BASE_URL=http://52.52.41.225:2001
-      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+      - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
       - PUBLIC_PATH=/authoring/
       - PORT=2001
       - ENABLE_UNIT_PAGE=true
@@ -86,7 +86,7 @@ services:
       - "1996:1996"
     environment:
       - PUBLIC_PATH=/learner-dashboard/
-      - MFE_CONFIG_API_URL=http://lms:18000/api/mfe_config/v1
+      - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
     volumes:
       - ./frontend-app-learner-dashboard:/app
       - /app/node_modules
