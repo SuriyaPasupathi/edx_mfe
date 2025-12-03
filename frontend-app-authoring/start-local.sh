@@ -14,7 +14,7 @@ export LMS_BASE_URL=${LMS_BASE_URL:-http://localhost:18000}
 export BASE_URL=${BASE_URL:-http://localhost:2001}
 export MFE_CONFIG_API_URL=${MFE_CONFIG_API_URL:-http://localhost:18000/api/mfe_config/v1}
 export MFE_NAME=${MFE_NAME:-authoring}
-export PUBLIC_PATH=${PUBLIC_PATH:-/authoring/}
+export PUBLIC_PATH=${PUBLIC_PATH:-/}
 export PORT=${PORT:-2001}
 
 # Feature flags (use env vars if set, otherwise defaults)
