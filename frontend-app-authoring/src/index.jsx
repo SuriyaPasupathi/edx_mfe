@@ -130,6 +130,7 @@ const App = () => {
 };
 
 subscribe(APP_READY, () => {
+  console.log('[Authoring MFE] App ready, rendering...');
   const root = createRoot(document.getElementById('root'));
 
   root.render(
@@ -140,6 +141,7 @@ subscribe(APP_READY, () => {
 });
 
 subscribe(APP_INIT_ERROR, (error) => {
+  console.error('[Authoring MFE] App initialization error:', error);
   const root = createRoot(document.getElementById('root'));
 
   root.render(
@@ -149,9 +151,18 @@ subscribe(APP_INIT_ERROR, (error) => {
   );
 });
 
+console.log('[Authoring MFE] Initializing with MFE_CONFIG_API_URL:', process.env.MFE_CONFIG_API_URL);
+console.log('[Authoring MFE] Environment variables:', {
+  STUDIO_BASE_URL: process.env.STUDIO_BASE_URL,
+  LMS_BASE_URL: process.env.LMS_BASE_URL,
+  BASE_URL: process.env.BASE_URL,
+  PUBLIC_PATH: process.env.PUBLIC_PATH,
+});
+
 initialize({
   handlers: {
     config: () => {
+      console.log('[Authoring MFE] Config handler called');
       mergeConfig({
         SUPPORT_URL: process.env.SUPPORT_URL || null,
         SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || null,

@@ -60,6 +60,7 @@ services:
       - LMS_BASE_URL=http://52.52.41.225:18000
       - BASE_URL=http://52.52.41.225:2001
       - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
+      - MFE_NAME=authoring
       - PUBLIC_PATH=/authoring/
       - PORT=2001
       - ENABLE_UNIT_PAGE=true
@@ -68,6 +69,9 @@ services:
       - ENABLE_ACCESSIBILITY_PAGE=true
       - ENABLE_TAGGING_TAXONOMY_PAGES=true
       - ENABLE_PROGRESS_GRAPH_SETTINGS=true
+      - TERMS_OF_SERVICE_URL=http://52.52.41.225:18000/terms
+      - PRIVACY_POLICY_URL=http://52.52.41.225:18000/privacy
+      - SUPPORT_URL=https://support.openedx.org
     volumes:
       - ./frontend-app-authoring:/app
       - /app/node_modules

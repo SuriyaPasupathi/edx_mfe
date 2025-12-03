@@ -14,6 +14,7 @@ COPY . .
 # Expose port
 EXPOSE 2001
 
-# Start development server
-CMD ["npm", "run", "start"]
+# Start development server with environment variables
+# Note: Environment variables from docker-compose.yml will be available to the process
+CMD ["sh", "-c", "npm run start"]
 
