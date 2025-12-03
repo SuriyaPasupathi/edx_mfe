@@ -59,6 +59,7 @@ services:
       - STUDIO_BASE_URL=http://52.52.41.225:18010
       - LMS_BASE_URL=http://52.52.41.225:18000
       - BASE_URL=http://52.52.41.225:2001
+      - LEARNING_BASE_URL=http://52.52.41.225:2000
       - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
       - MFE_NAME=authoring
       - PUBLIC_PATH=/authoring/

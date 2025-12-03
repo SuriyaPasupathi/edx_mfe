@@ -11,10 +11,13 @@ RUN npm install --legacy-peer-deps || npm install
 # Copy application code
 COPY . .
 
+# Make start-local.sh executable
+RUN chmod +x start-local.sh
+
 # Expose port
 EXPOSE 2001
 
-# Start development server with environment variables
-# Note: Environment variables from docker-compose.yml will be available to the process
-CMD ["sh", "-c", "npm run start"]
+# Start development server using start-local.sh script
+# Environment variables from docker-compose.yml will be available to the script
+CMD ["./start-local.sh"]
 
