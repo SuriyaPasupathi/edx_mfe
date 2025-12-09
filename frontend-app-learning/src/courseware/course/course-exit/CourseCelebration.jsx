@@ -47,6 +47,7 @@ const CourseCelebration = () => {
     offer,
     relatedPrograms,
     title,
+    userHasPassingGrade,
     verifyIdentityUrl,
     verificationStatus,
   } = useModel('coursewareMeta', courseId);
@@ -145,24 +146,41 @@ const CourseCelebration = () => {
       break;
     }
     case 'requesting':
-      // The requesting status needs a different button because it does a POST instead of a GET.
-      // So we don't set buttonLocation and instead define a custom button as a buttonPrefix.
-      buttonEvent = 'request_cert';
-      buttonPrefix = (
-        <Button
-          variant={buttonVariant}
-          onClick={() => {
-            logClick(org, courseId, administrator, buttonEvent);
-            dispatch(requestCert(courseId));
-          }}
-        >
-          {intl.formatMessage(messages.requestCertificateButton)}
-        </Button>
-      );
-      certHeader = intl.formatMessage(messages.certificateHeaderRequestable);
-      message = (<p>{intl.formatMessage(messages.requestCertificateBodyText)}</p>);
-      visitEvent = 'celebration_with_requestable_cert';
-      footnote = <DashboardFootnote variant={visitEvent} />;
+      // Only show "Request certificate" button if course is actually completed
+      if (userHasPassingGrade) {
+        // The requesting status needs a different button because it does a POST instead of a GET.
+        // So we don't set buttonLocation and instead define a custom button as a buttonPrefix.
+        buttonEvent = 'request_cert';
+        buttonPrefix = (
+          <Button
+            variant={buttonVariant}
+            onClick={() => {
+              logClick(org, courseId, administrator, buttonEvent);
+              dispatch(requestCert(courseId));
+            }}
+          >
+            {intl.formatMessage(messages.requestCertificateButton)}
+          </Button>
+        );
+        certHeader = intl.formatMessage(messages.certificateHeaderRequestable);
+        message = (<p>{intl.formatMessage(messages.requestCertificateBodyText)}</p>);
+        visitEvent = 'celebration_with_requestable_cert';
+        footnote = <DashboardFootnote variant={visitEvent} />;
+      } else {
+        // Course not completed, don't show certificate request button
+        // Fall back to a generic celebration message
+        certHeader = intl.formatMessage(messages.certificateHeaderDownloadable);
+        message = (
+          <p>
+            <FormattedMessage
+              id="courseCelebration.certificateBody.inProgress"
+              defaultMessage="Continue working on the course to earn your certificate."
+              description="Message shown when certificate is requesting but course is not completed"
+            />
+          </p>
+        );
+        visitEvent = 'celebration_generic';
+      }
       break;
     case 'unverified':
       certHeader = intl.formatMessage(messages.certificateHeaderUnverified);

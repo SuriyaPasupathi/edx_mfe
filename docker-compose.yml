@@ -13,7 +13,7 @@ services:
       - OPENEDX_API_BASE=http://lms:18000
       - OPENEDX_DASHBOARD_URL=http://lms:18000/dashboard
       - DEFAULT_USER_PASSWORD=ChangeMe!2345
-      - COURSE_ID=course-v1:Example+Demo+2025
+      - COURSE_ID=course-v1:Example+Demuo+2025
     volumes:
       - ./fastapi_edx:/app
       - fastapi_data:/app/data
@@ -38,7 +38,10 @@ services:
       - "2000:2000"
     environment:
       - PUBLIC_PATH=/learning/
-      - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
+      - MFE_CONFIG_API_URL=http://localhost:18000/api/mfe_config/v1
+      - FASTAPI_BASE_URL=http://52.52.41.225:8000
+      - LMS_BASE_URL=http://52.52.41.225:18000
+      - BASE_URL=http://52.52.41.225:2000
     volumes:
       - ./frontend-app-learning:/app
       - /app/node_modules
@@ -56,11 +59,11 @@ services:
     ports:
       - "2001:2001"
     environment:
-      - STUDIO_BASE_URL=http://52.52.41.225:18010
-      - LMS_BASE_URL=http://52.52.41.225:18000
-      - BASE_URL=http://52.52.41.225:2001
-      - LEARNING_BASE_URL=http://52.52.41.225:2000
-      - MFE_CONFIG_API_URL=http://52.52.41.225:18000/api/mfe_config/v1
+      - STUDIO_BASE_URL=http://localhost:18010
+      - LMS_BASE_URL=http://localhost:18000
+      - BASE_URL=http://localhost:2001
+      - LEARNING_BASE_URL=http://localhost:2000
+      - MFE_CONFIG_API_URL=http://localhost:18000/api/mfe_config/v1
       - MFE_NAME=authoring
       - PUBLIC_PATH=/
       - PORT=2001

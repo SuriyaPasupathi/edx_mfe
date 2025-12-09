@@ -110,7 +110,31 @@ export function dismissWelcomeMessage(courseId) {
 }
 
 export function requestCert(courseId) {
-  return async () => postRequestCert(courseId);
+  return async (dispatch) => {
+    try {
+      const result = await postRequestCert(courseId);
+      // Refresh course data to update certificate status in UI
+      // Refresh both outline and progress tabs since certificate status appears in both
+      dispatch(fetchOutlineTab(courseId));
+      dispatch(fetchProgressTab(courseId));
+      return result;
+    } catch (error) {
+      // Check if this is a 400 error (certificate already exists or being created)
+      // Even if postRequestCert didn't catch it, handle it here as a fallback
+      const httpErrorStatus = error?.response?.status;
+      if (httpErrorStatus === 400) {
+        // Likely certificate already exists or is being created
+        logInfo(`Certificate request returned 400 for course ${courseId}, treating as success`);
+        // Refresh course data anyway to update UI
+        dispatch(fetchOutlineTab(courseId));
+        dispatch(fetchProgressTab(courseId));
+        return { alreadyExists: true };
+      }
+      // Log and re-throw other errors
+      logError(error);
+      throw error;
+    }
+  };
 }
 
 export function resetDeadlines(courseId, model, getTabData) {

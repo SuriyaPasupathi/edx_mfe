@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { sendTrackEvent } from '@edx/frontend-platform/analytics';
 import { getAuthenticatedUser } from '@edx/frontend-platform/auth';
@@ -11,19 +11,12 @@ import { useModel } from '../../../generic/model-store';
 import { COURSE_EXIT_MODES, getCourseExitMode } from '../../../courseware/course/course-exit/utils';
 import { DashboardLink, IdVerificationSupportLink, ProfileLink } from '../../../shared/links';
 import { requestCert } from '../../data/thunks';
-import { saveCertificateToICGPortal } from '../../data/api';
 import messages from './messages';
 import ProgressCertificateStatusSlot from '../../../plugin-slots/ProgressCertificateStatusSlot';
 
 const CertificateStatus = () => {
   const intl = useIntl();
   const courseId = useContextId();
-  const [icgSaveState, setIcgSaveState] = useState({
-    saving: false,
-            success: null,
-            error: null,
-            alreadyAdded: false,
-          });
 
   const {
     entranceExamData,
@@ -116,10 +109,18 @@ const CertificateStatus = () => {
   } else if (mode === COURSE_EXIT_MODES.celebration || certIsDownloadable) {
     switch (certStatus) {
       case 'requesting':
-        certCase = 'requestable';
-        buttonAction = () => { dispatch(requestCert(courseId)); };
-        body = intl.formatMessage(messages[`${certCase}Body`]);
-        buttonText = intl.formatMessage(messages[`${certCase}Button`]);
+        // Only show "Request certificate" button if course is actually completed
+        // Check userHasPassingGrade to ensure the course is completed
+        if (userHasPassingGrade) {
+          certCase = 'requestable';
+          buttonAction = () => { dispatch(requestCert(courseId)); };
+          body = intl.formatMessage(messages[`${certCase}Body`]);
+          buttonText = intl.formatMessage(messages[`${certCase}Button`]);
+        } else {
+          // Course not completed yet, don't show certificate request button
+          certCase = null;
+          certEventName = 'course_not_completed';
+        }
         break;
 
       case 'unverified':
@@ -246,71 +247,6 @@ const CertificateStatus = () => {
     }
   };
 
-  const handleSaveToICGPortal = async () => {
-    if (!certificateData || certStatus !== 'downloadable') {
-      return;
-    }
-
-    setIcgSaveState({ saving: true, success: null, error: null, alreadyAdded: false });
-
-    try {
-      const user = getAuthenticatedUser();
-      
-      const certPayload = {
-        username: user.username,
-        email: user.email,
-        courseId: courseId,
-        courseName: certificateData.courseName || courseId,
-        certificateUrl: certWebViewUrl ? `${getConfig().LMS_BASE_URL}${certWebViewUrl}` : '',
-        certificatePdfUrl: certWebViewUrl ? `${getConfig().LMS_BASE_URL}${certWebViewUrl}` : '',
-        certificateUuid: certificateData.verifyUuid || '',
-        completedDate: certificateData.createdDate || new Date().toISOString(),
-        grade: certificateData.grade || '',
-        mode: enrollmentMode || '',
-        status: certStatus,
-      };
-
-      const response = await saveCertificateToICGPortal(certPayload);
-      
-      // Check if certificate already exists first
-      if (response.alreadyExists || (response.success && response.message && response.message.toLowerCase().includes('already'))) {
-        setIcgSaveState({ 
-          saving: false, 
-          success: null, 
-          error: null, 
-          alreadyAdded: true 
-        });
-      } else if (response.success) {
-        setIcgSaveState({ 
-          saving: false, 
-          success: true, 
-          error: null, 
-          alreadyAdded: false 
-        });
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setIcgSaveState(prev => ({ ...prev, success: null }));
-        }, 5000);
-      } else {
-        setIcgSaveState({ 
-          saving: false, 
-          success: null, 
-          error: response.message || 'Failed to save certificate', 
-          alreadyAdded: false 
-        });
-      }
-    } catch (error) {
-      logInfo(`Error saving certificate to ICG Portal: ${error.message}`);
-      setIcgSaveState({ 
-        saving: false, 
-        success: null, 
-        error: error.message || intl.formatMessage(messages.saveToIcgError), 
-        alreadyAdded: false 
-      });
-    }
-  };
-
   return (
     <section data-testid="certificate-status-component" className="text-dark-700 mb-4">
       <Card className="bg-light-200 raised-card">
@@ -319,26 +255,6 @@ const CertificateStatus = () => {
             <Card.Header title={header} />
             <Card.Section className="small text-gray-700">
               {body}
-              {/* ICG Portal Save Status Messages */}
-              {certStatus === 'downloadable' && (
-                <div className="mt-3">
-                  {icgSaveState.success && (
-                    <div className="alert alert-success small mb-2" role="alert">
-                      {intl.formatMessage(messages.saveToIcgSuccess)}
-                    </div>
-                  )}
-                  {icgSaveState.alreadyAdded && (
-                    <div className="alert alert-info small mb-2" role="alert">
-                      {intl.formatMessage(messages.saveToIcgAlreadyAdded)}
-                    </div>
-                  )}
-                  {icgSaveState.error && (
-                    <div className="alert alert-danger small mb-2" role="alert">
-                      {icgSaveState.error}
-                    </div>
-                  )}
-                </div>
-              )}
             </Card.Section>
             <Card.Footer>
               {buttonText && (buttonLocation || buttonAction) && (
@@ -352,21 +268,6 @@ const CertificateStatus = () => {
                   block
                 >
                   {buttonText}
-                </Button>
-              )}
-              {/* Save to ICG Portal Button */}
-              {certStatus === 'downloadable' && (
-                <Button
-                  variant="primary"
-                  onClick={handleSaveToICGPortal}
-                  disabled={icgSaveState.saving}
-                  block
-                  className="mt-2"
-                >
-                  {icgSaveState.saving 
-                    ? intl.formatMessage(messages.savingToIcg)
-                    : intl.formatMessage(messages.saveToIcgButton)
-                  }
                 </Button>
               )}
             </Card.Footer>

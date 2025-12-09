@@ -85,8 +85,9 @@ function useCertificateStatusAlert(courseId) {
     org,
     notPassingCourseEnded,
     tabs,
+    userHasPassingGrade,
   }), [certStatus, certURL, certificateAvailableDate, courseId,
-    endBlock, notPassingCourseEnded, org, tabs, userTimezone]);
+    endBlock, notPassingCourseEnded, org, tabs, userTimezone, userHasPassingGrade]);
 
   useAlert(isVisible || notPassingCourseEnded, {
     code: 'clientCertificateStatusAlert',

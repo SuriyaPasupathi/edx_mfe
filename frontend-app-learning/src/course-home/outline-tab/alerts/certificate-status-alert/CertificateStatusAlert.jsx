@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import {
   FormattedDate,
@@ -13,11 +13,9 @@ import { faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-sv
 import { getConfig } from '@edx/frontend-platform';
 import { sendTrackEvent } from '@edx/frontend-platform/analytics';
 import { getAuthenticatedUser } from '@edx/frontend-platform/auth';
-import { logInfo } from '@edx/frontend-platform/logging';
 import certMessages from './messages';
 import certStatusMessages from '../../../progress-tab/certificate-status/messages';
 import { requestCert } from '../../../data/thunks';
-import { saveCertificateToICGPortal } from '../../../data/api';
 
 export const CERT_STATUS_TYPE = {
   EARNED_NOT_AVAILABLE: 'earned_but_not_available',
@@ -41,13 +39,6 @@ const CertificateStatusAlert = ({ payload }) => {
     tabs,
   } = payload;
 
-  const [icgSaveState, setIcgSaveState] = useState({
-    saving: false,
-    success: null,
-    error: null,
-    alreadyAdded: false,
-  });
-
   // eslint-disable-next-line react/prop-types
   const AlertWrapper = (props) => props.children(props);
 
@@ -58,73 +49,6 @@ const CertificateStatusAlert = ({ payload }) => {
       courserun_key: courseId,
       is_staff: administrator,
     });
-  };
-
-  const handleSaveToICGPortal = async () => {
-    if (certStatus !== CERT_STATUS_TYPE.DOWNLOADABLE) {
-      return;
-    }
-
-    setIcgSaveState({ saving: true, success: null, error: null, alreadyAdded: false });
-
-    try {
-      const user = getAuthenticatedUser();
-      
-      const certPayload = {
-        username: user.username,
-        email: user.email,
-        courseId: courseId,
-        courseName: courseId, // You may want to get course name from payload if available
-        certificateUrl: certURL || '',
-        certificatePdfUrl: certURL || '',
-        certificateUuid: '',
-        completedDate: new Date().toISOString(),
-        grade: '',
-        mode: '',
-        status: certStatus,
-      };
-
-      const response = await saveCertificateToICGPortal(certPayload);
-      
-      // Check if certificate already exists first
-      if (response.alreadyExists || (response.success && response.message && response.message.toLowerCase().includes('already'))) {
-        setIcgSaveState({ 
-          saving: false, 
-          success: null, 
-          error: null, 
-          alreadyAdded: true 
-        });
-      } else if (response.success) {
-        setIcgSaveState({ 
-          saving: false, 
-          success: true, 
-          error: null, 
-          alreadyAdded: false 
-        });
-        
-        sendAlertClickTracking('edx.ui.lms.course_outline.certificate_alert_save_icg_button.success');
-        
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setIcgSaveState(prev => ({ ...prev, success: null }));
-        }, 5000);
-      } else {
-        setIcgSaveState({ 
-          saving: false, 
-          success: null, 
-          error: response.message || intl.formatMessage(certStatusMessages.saveToIcgError), 
-          alreadyAdded: false 
-        });
-      }
-    } catch (error) {
-      logInfo(`Error saving certificate to ICG Portal: ${error.message}`);
-      setIcgSaveState({ 
-        saving: false, 
-        success: null, 
-        error: error.message || intl.formatMessage(certStatusMessages.saveToIcgError), 
-        alreadyAdded: false 
-      });
-    }
   };
 
   const renderCertAwardedStatus = () => {
@@ -160,17 +84,23 @@ const CertificateStatusAlert = ({ payload }) => {
       alertProps.buttonAction = () => {
         sendAlertClickTracking('edx.ui.lms.course_outline.certificate_alert_downloadable_button.clicked');
       };
-      // Add ICG save button
-      alertProps.showIcgButton = true;
     } else if (certStatus === CERT_STATUS_TYPE.REQUESTING) {
-      alertProps.header = intl.formatMessage(certMessages.certStatusDownloadableHeader);
-      alertProps.buttonMessage = intl.formatMessage(certStatusMessages.requestableButton);
-      alertProps.buttonVisible = true;
-      alertProps.buttonLink = '';
-      alertProps.buttonAction = () => {
-        sendAlertClickTracking('edx.ui.lms.course_outline.certificate_alert_request_cert_button.clicked');
-        dispatch(requestCert(courseId));
-      };
+      // Only show "Request certificate" button if course is actually completed
+      const userHasPassingGrade = payload?.userHasPassingGrade ?? false;
+      
+      if (userHasPassingGrade) {
+        alertProps.header = intl.formatMessage(certMessages.certStatusDownloadableHeader);
+        alertProps.buttonMessage = intl.formatMessage(certStatusMessages.requestableButton);
+        alertProps.buttonVisible = true;
+        alertProps.buttonLink = '';
+        alertProps.buttonAction = () => {
+          sendAlertClickTracking('edx.ui.lms.course_outline.certificate_alert_request_cert_button.clicked');
+          dispatch(requestCert(courseId));
+        };
+      } else {
+        // Course not completed, don't show certificate alert
+        return null;
+      }
     }
     return alertProps;
   };
@@ -240,63 +170,25 @@ const CertificateStatusAlert = ({ payload }) => {
         buttonAction,
         buttonLink,
         buttonMessage,
-        showIcgButton,
       }) => (
         <Alert variant={variant}>
           <div className="d-flex flex-column flex-lg-row justify-content-between align-items-center">
-            <div className={buttonVisible || showIcgButton ? 'col-lg-8' : 'col-auto'}>
+            <div className={buttonVisible ? 'col-lg-8' : 'col-auto'}>
               <FontAwesomeIcon icon={icon} className={iconClassName} />
               <Alert.Heading>{header}</Alert.Heading>
               {body}
-              {/* ICG Portal Save Status Messages */}
-              {showIcgButton && (
-                <div className="mt-2">
-                  {icgSaveState.success && certStatusMessages.saveToIcgSuccess && (
-                    <div className="alert alert-success small mb-2" role="alert">
-                      {intl.formatMessage(certStatusMessages.saveToIcgSuccess)}
-                    </div>
-                  )}
-                  {icgSaveState.alreadyAdded && certStatusMessages.saveToIcgAlreadyAdded && (
-                    <div className="alert alert-info small mb-2" role="alert">
-                      {intl.formatMessage(certStatusMessages.saveToIcgAlreadyAdded)}
-                    </div>
-                  )}
-                  {icgSaveState.error && (
-                    <div className="alert alert-danger small mb-2" role="alert">
-                      {icgSaveState.error}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
-            {(buttonVisible || showIcgButton) && (
-              <div className="flex-grow-0 pt-3 pt-lg-0 d-flex flex-column gap-2">
-                {buttonVisible && (
-                  <Button
-                    variant="primary"
-                    href={buttonLink}
-                    onClick={() => {
-                      if (buttonAction) { buttonAction(); }
-                    }}
-                  >
-                    {buttonMessage}
-                  </Button>
-                )}
-                {showIcgButton && (
-                  <Button
-                    variant="outline-primary"
-                    onClick={() => {
-                      sendAlertClickTracking('edx.ui.lms.course_outline.certificate_alert_save_icg_button.clicked');
-                      handleSaveToICGPortal();
-                    }}
-                    disabled={icgSaveState.saving}
-                  >
-                    {icgSaveState.saving 
-                      ? (certStatusMessages.savingToIcg ? intl.formatMessage(certStatusMessages.savingToIcg) : 'Saving to ICG Portal...')
-                      : (certStatusMessages.saveToIcgButton ? intl.formatMessage(certStatusMessages.saveToIcgButton) : 'Save to ICG Portal')
-                    }
-                  </Button>
-                )}
+            {buttonVisible && (
+              <div className="flex-grow-0 pt-3 pt-lg-0">
+                <Button
+                  variant="primary"
+                  href={buttonLink}
+                  onClick={() => {
+                    if (buttonAction) { buttonAction(); }
+                  }}
+                >
+                  {buttonMessage}
+                </Button>
               </div>
             )}
           </div>
@@ -317,6 +209,7 @@ CertificateStatusAlert.propTypes = {
     userTimezone: PropTypes.string,
     org: PropTypes.string,
     notPassingCourseEnded: PropTypes.bool,
+    userHasPassingGrade: PropTypes.bool,
     tabs: PropTypes.arrayOf(PropTypes.shape({
       tab_id: PropTypes.string,
       title: PropTypes.string,

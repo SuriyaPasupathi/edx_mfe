@@ -353,7 +353,66 @@ export async function postDismissWelcomeMessage(courseId) {
 
 export async function postRequestCert(courseId) {
   const url = new URL(`${getConfig().LMS_BASE_URL}/courses/${courseId}/generate_user_cert`);
-  await getAuthenticatedHttpClient().post(url.href);
+  try {
+    await getAuthenticatedHttpClient().post(url.href);
+  } catch (error) {
+    // Handle the case where certificate already exists (400 error)
+    // Check both error.response.status and error.customAttributes.httpErrorStatus
+    const httpErrorStatus = error?.response?.status || (error?.customAttributes && error.customAttributes.httpErrorStatus);
+    
+    // For this endpoint, a 400 error typically means:
+    // 1. Certificate has already been created
+    // 2. Certificate is being created
+    // Both cases should be treated as success - we just need to refresh the UI
+    
+    if (httpErrorStatus === 400) {
+      // Django HttpResponseBadRequest may return the message in different formats:
+      // - As a plain string in response.data
+      // - As an object with error/message/detail properties
+      // - In error.message
+      // - In error.customAttributes
+      let errorMessage = '';
+      if (error?.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      }
+      if (!errorMessage && error?.message) {
+        errorMessage = error.message;
+      }
+      if (!errorMessage && error?.customAttributes?.errorMessage) {
+        errorMessage = error.customAttributes.errorMessage;
+      }
+      
+      const errorMessageLower = errorMessage.toLowerCase();
+      
+      // Check if error message indicates certificate already exists or is being created
+      if (
+        errorMessageLower.includes('certificate has already been created') ||
+        errorMessageLower.includes('certificate already exists') ||
+        errorMessageLower.includes('already been created') ||
+        errorMessageLower.includes('certificate is being created') ||
+        errorMessageLower.includes('is being created')
+      ) {
+        // Certificate already exists or is being created, treat as success
+        logInfo(`Certificate already exists or is being created for course ${courseId}: ${errorMessage}`);
+        return { alreadyExists: true };
+      }
+      
+      // If it's a 400 but we can't parse the message, still treat as success
+      // since the only 400 responses from this endpoint are certificate-related
+      logInfo(`Received 400 error for certificate request in course ${courseId}, treating as success. Message: ${errorMessage || 'No message'}`);
+      return { alreadyExists: true };
+    }
+    // Re-throw other errors (non-400)
+    throw error;
+  }
 }
 
 export async function executePostFromPostEvent(postData, researchEventData) {
